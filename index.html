@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PC Stats — список серверов</title>
+<style>
+  :root{
+    --bg-0:#0a0910;
+    --bg-1:#121020;
+    --bg-2:#181530;
+    --panel:#151228;
+    --line: rgba(255,255,255,0.08);
+    --violet: #8b6bff;
+    --green: #33e08a;
+    --gold: #f2c94c;
+    --red: #ff5c5c;
+    --text-hi:#f2f0fb;
+    --text-mid:#a9a3c9;
+    --text-low:#6c6790;
+    --mono: 'JetBrains Mono', 'Consolas', monospace;
+    --disp: 'Rajdhani', 'Oswald', sans-serif;
+    --body: 'Inter', 'Segoe UI', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse at 20% -10%, rgba(139,107,255,0.16), transparent 55%),
+      radial-gradient(ellipse at 100% 0%, rgba(51,224,138,0.08), transparent 45%),
+      var(--bg-0);
+    color:var(--text-hi);
+    font-family:var(--body);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;text-decoration:none;}
+  ::selection{background:var(--violet);color:#fff;}
+  button{font-family:inherit;}
+
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 28px;border-bottom:1px solid var(--line);
+    position:sticky;top:0;z-index:50;
+    background:rgba(10,9,16,0.82);backdrop-filter:blur(10px);
+    gap:16px;flex-wrap:wrap;
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-family:var(--disp);font-weight:700;letter-spacing:0.04em;font-size:19px;cursor:pointer;}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);}
+  .brand .dot.off{background:var(--red);box-shadow:0 0 10px var(--red);}
+  .brand small{font-family:var(--mono);color:var(--text-low);font-weight:500;font-size:12px;letter-spacing:0.08em;margin-left:6px;}
+  .topnav{display:flex;align-items:center;gap:18px;}
+  .navlink{font-family:var(--disp);font-size:14px;font-weight:600;color:var(--text-low);cursor:pointer;letter-spacing:0.03em;}
+  .navlink:hover, .navlink.active{color:var(--text-hi);}
+  .topbar .updated{font-family:var(--mono);font-size:12px;color:var(--text-low);}
+
+  .wrap{max-width:900px;margin:0 auto;padding:36px 24px 90px;}
+
+  .hero{margin-bottom:28px;}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:var(--green);margin-bottom:10px;}
+  h1{font-family:var(--disp);font-size:34px;line-height:1.05;font-weight:700;margin:0 0 8px;letter-spacing:0.01em;}
+  .sub{color:var(--text-mid);font-size:14.5px;max-width:560px;line-height:1.55;}
+
+  /* ---------- server list ---------- */
+  .server-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;margin-top:8px;}
+  .server-card{
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;
+    cursor:pointer;transition:border-color .15s,transform .15s;
+  }
+  .server-card:hover{border-color:var(--violet);transform:translateY(-2px);}
+  .server-name{font-family:var(--disp);font-weight:700;font-size:17px;margin-bottom:6px;}
+  .server-count{font-family:var(--mono);font-size:12px;color:var(--text-low);}
+  .server-count b{color:var(--green);}
+
+  /* ---------- tabs ---------- */
+  .tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:22px;}
+  .tab{
+    font-family:var(--disp);font-size:15px;font-weight:600;letter-spacing:0.02em;
+    padding:11px 18px;color:var(--text-low);cursor:pointer;border-bottom:2px solid transparent;
+    transition:color .15s;
+  }
+  .tab.active{color:var(--text-hi);border-color:var(--violet);}
+  .tab:hover{color:var(--text-hi);}
+  .back{font-family:var(--mono);font-size:12.5px;color:var(--text-low);cursor:pointer;margin-bottom:16px;display:inline-block;}
+  .back:hover{color:var(--text-hi);}
+
+  /* ---------- currency tab ---------- */
+  .rate-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;}
+  .rate-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;cursor:pointer;transition:border-color .15s,transform .15s;}
+  .rate-card:hover{border-color:var(--violet);transform:translateY(-2px);}
+  .rate-top{display:flex;justify-content:space-between;align-items:center;}
+  .rate-sym{font-family:var(--disp);font-weight:700;font-size:18px;}
+  .rate-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;}
+  .rate-val{font-family:var(--mono);font-size:24px;font-weight:700;margin-top:14px;color:var(--text-hi);}
+  .rate-ago{font-family:var(--mono);font-size:11px;color:var(--text-low);margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
+  .rate-ago.fresh{color:var(--green);}
+  .rate-ago.stale{color:var(--red);}
+  .rate-chart-hint{font-family:var(--mono);font-size:10px;color:var(--text-low);margin-top:6px;}
+
+  /* ---------- player tab ---------- */
+  .player-list{display:flex;flex-direction:column;gap:8px;}
+  .player-row{
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:13px 16px;display:flex;align-items:center;justify-content:space-between;
+  }
+  .player-nick{font-family:var(--mono);font-weight:700;font-size:14.5px;}
+  .player-ago{font-family:var(--mono);font-size:11.5px;color:var(--text-low);}
+  .player-ago.fresh{color:var(--green);}
+
+  .empty-note{
+    font-family:var(--mono);font-size:12px;color:var(--text-low);text-align:center;
+    padding:22px;border:1px dashed var(--line);border-radius:12px;margin-top:16px;line-height:1.7;
+  }
+
+  .screen{display:none;}
+  .screen.active{display:block;}
+
+  /* ---------- manual rate update form ---------- */
+  .panel-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-top:22px;}
+  .panel-title{font-family:var(--disp);font-weight:700;font-size:15px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;}
+  .panel-title .chev{color:var(--text-low);font-family:var(--mono);font-size:12px;}
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:12px;}
+  .form-grid label{display:block;font-family:var(--mono);font-size:11px;color:var(--text-low);margin-bottom:5px;}
+  .form-grid input{
+    width:100%;background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:8px;
+    color:var(--text-hi);font-family:var(--mono);font-size:13px;padding:9px 10px;
+  }
+  .form-grid input:focus{outline:none;border-color:var(--violet);}
+  .btn{
+    font-family:var(--disp);font-weight:600;font-size:14px;letter-spacing:0.02em;
+    background:rgba(139,107,255,0.16);border:1px solid rgba(139,107,255,0.4);color:var(--text-hi);
+    padding:10px 16px;border-radius:9px;cursor:pointer;transition:background .15s;
+  }
+  .btn:hover{background:rgba(139,107,255,0.3);}
+  .btn.green{background:rgba(51,224,138,0.14);border-color:rgba(51,224,138,0.4);}
+  .btn.green:hover{background:rgba(51,224,138,0.26);}
+  .btn.gold{background:rgba(242,201,76,0.14);border-color:rgba(242,201,76,0.4);}
+  .btn.gold:hover{background:rgba(242,201,76,0.26);}
+  .btn:disabled{opacity:0.5;cursor:default;}
+  .btn-row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;}
+  .form-note{font-family:var(--mono);font-size:11px;color:var(--text-low);margin-top:10px;line-height:1.6;}
+  .status-msg{font-family:var(--mono);font-size:12px;margin-top:10px;}
+  .status-msg.ok{color:var(--green);}
+  .status-msg.err{color:var(--red);}
+
+  /* ---------- chart modal ---------- */
+  .modal-backdrop{
+    display:none;position:fixed;inset:0;background:rgba(5,4,10,0.72);backdrop-filter:blur(4px);
+    z-index:100;align-items:center;justify-content:center;padding:20px;
+  }
+  .modal-backdrop.active{display:flex;}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;max-width:560px;width:100%;}
+  .modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+  .modal-title{font-family:var(--disp);font-weight:700;font-size:18px;}
+  .modal-close{cursor:pointer;color:var(--text-low);font-family:var(--mono);font-size:20px;line-height:1;padding:4px 8px;}
+  .modal-close:hover{color:var(--text-hi);}
+  .chart-box{background:rgba(255,255,255,0.02);border-radius:10px;padding:10px;}
+
+  /* ---------- cabinet ---------- */
+  .token-gate{max-width:420px;margin:40px auto 0;text-align:center;}
+  .token-gate input{
+    width:100%;background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:9px;
+    color:var(--text-hi);font-family:var(--mono);font-size:13px;padding:11px 12px;margin-top:14px;text-align:center;
+  }
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:8px;}
+  .stat-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;}
+  .stat-label{font-family:var(--mono);font-size:11px;color:var(--text-low);margin-bottom:6px;}
+  .stat-val{font-family:var(--disp);font-weight:700;font-size:19px;}
+  .tax-badge{display:inline-block;font-family:var(--mono);font-size:12px;padding:6px 12px;border-radius:20px;margin-top:4px;}
+  .tax-badge.paid{background:rgba(51,224,138,0.14);color:var(--green);}
+  .tax-badge.unpaid{background:rgba(255,92,92,0.14);color:var(--red);}
+
+  @media (max-width:640px){
+    h1{font-size:27px;}
+    .wrap{padding:24px 16px 70px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand" onclick="goHome()"><span class="dot" id="statusDot"></span>PC STATS<small>LIVE</small></div>
+  <div class="topnav">
+    <div class="navlink" id="navHome" onclick="goHome()">Серверы</div>
+    <div class="navlink" id="navCabinet" onclick="goCabinet()">Личный кабинет</div>
+  </div>
+  <div class="updated" id="updatedAt"></div>
+</div>
+
+<div class="wrap">
+
+  <!-- SCREEN 0: список серверов -->
+  <div class="screen active" id="screen-home">
+    <div class="hero">
+      <div class="eyebrow">PC Stats · сеть серверов</div>
+      <h1>Кто сейчас в сети</h1>
+      <div class="sub">Список серверов, где хотя бы один игрок пользуется PC Stats. Выбери сервер, чтобы увидеть игроков и актуальный курс валют.</div>
+    </div>
+    <div class="server-grid" id="serverGrid"></div>
+    <div id="homeEmpty"></div>
+  </div>
+
+  <!-- SCREEN 1: dashboard сервера -->
+  <div class="screen" id="screen-dash">
+    <span class="back" onclick="goHome()">← ко всем серверам</span>
+    <div class="hero">
+      <div class="eyebrow" id="dashEyebrow">Сервер</div>
+      <h1 id="dashTitle">—</h1>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" data-tab="rates" onclick="switchTab('rates')">Валюты</div>
+      <div class="tab" data-tab="player" onclick="switchTab('player')">Игроки</div>
+    </div>
+
+    <div id="tab-rates"></div>
+    <div id="tab-player" style="display:none;"></div>
+  </div>
+
+  <!-- SCREEN 2: личный кабинет -->
+  <div class="screen" id="screen-cabinet">
+    <span class="back" onclick="goHome()">← ко всем серверам</span>
+    <div class="hero">
+      <div class="eyebrow">Личный кабинет</div>
+      <h1>Твоя статистика</h1>
+      <div class="sub">Токен кабинета создаётся кнопкой в самом скрипте (вкладка «Настройки» → «Личный кабинет»). Вставь его сюда один раз — браузер запомнит.</div>
+    </div>
+
+    <div id="cabinetGate" class="token-gate">
+      <input type="text" id="tokenInput" placeholder="токен кабинета" spellcheck="false" autocomplete="off">
+      <div class="btn-row" style="justify-content:center;">
+        <button class="btn" onclick="saveToken()">Открыть кабинет</button>
+      </div>
+      <div class="status-msg" id="cabinetGateStatus"></div>
+    </div>
+
+    <div id="cabinetBody" style="display:none;">
+      <div class="panel-card">
+        <div class="panel-title"><span id="cabinetWho">—</span></div>
+        <div class="stat-grid" id="cabinetStats"></div>
+        <div class="form-note" id="cabinetUpdated"></div>
+      </div>
+
+      <div class="panel-card">
+        <div class="panel-title">Налог</div>
+        <div id="taxStatus"></div>
+        <div class="btn-row">
+          <button class="btn gold" onclick="requestTaxPay()">Оплатить через скрипт</button>
+          <button class="btn" onclick="markTaxPaidManually()">Отметить оплаченным вручную</button>
+        </div>
+        <div class="form-note">
+          «Оплатить через скрипт» ставит команду в очередь — скрипт выполнит её при следующем запуске игры,
+          если в его настройках указана команда оплаты. Функция экспериментальная.
+        </div>
+        <div class="status-msg" id="taxActionStatus"></div>
+      </div>
+
+      <div class="panel-card">
+        <div class="panel-title">Прочее</div>
+        <div class="btn-row">
+          <button class="btn" onclick="requestRefresh()">Запросить обновление статистики</button>
+          <button class="btn" onclick="forgetToken()">Выйти из кабинета</button>
+        </div>
+        <div class="status-msg" id="miscActionStatus"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Модалка с графиком курса -->
+<div class="modal-backdrop" id="chartModal" onclick="if(event.target===this) closeChart()">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="chartTitle">График</div>
+      <div class="modal-close" onclick="closeChart()">×</div>
+    </div>
+    <div class="chart-box" id="chartBox"></div>
+    <div class="form-note" id="chartNote"></div>
+  </div>
+</div>
+
+<script>
+/* Адрес бэкенда (см. worker.js — деплоится на Cloudflare Workers за
+   5 минут, бесплатно). Поменяй на свой адрес после деплоя. */
+const API_BASE = "https://spring-frost-ab03.maincrafter48.workers.dev";
+
+let currentServer = null;
+let pollTimer = null;
+let lastRatesData = null;
+let cabinetPollTimer = null;
+
+function money(n){ return Math.round(n||0).toLocaleString('ru-RU'); }
+
+function agoText(ts){
+  if(!ts) return {text:'нет данных', cls:'stale'};
+  const diffMin = Math.floor((Date.now() - ts) / 60000);
+  if(diffMin < 1) return {text:'обновлено только что', cls:'fresh'};
+  if(diffMin < 60) return {text:'обновлено ' + diffMin + ' мин. назад', cls: diffMin < 15 ? 'fresh' : ''};
+  const diffH = Math.floor(diffMin/60);
+  if(diffH < 24) return {text:'обновлено ' + diffH + ' ч. назад', cls:'stale'};
+  return {text:'обновлено ' + Math.floor(diffH/24) + ' дн. назад', cls:'stale'};
+}
+
+async function loadServers(){
+  try{
+    const res = await fetch(API_BASE.replace(/\/+$/,'') + '/servers');
+    const data = await res.json();
+    document.getElementById('statusDot').classList.remove('off');
+    const grid = document.getElementById('serverGrid');
+    const servers = data.servers || [];
+    if(servers.length === 0){
+      document.getElementById('homeEmpty').innerHTML = '<div class="empty-note">Пока ни один сервер не появился. Как только кто-то зайдёт в игру со скриптом PC Stats — сервер появится здесь автоматически.</div>';
+      grid.innerHTML = '';
+      return;
+    }
+    document.getElementById('homeEmpty').innerHTML = '';
+    grid.innerHTML = servers.map(s => `
+      <div class="server-card" onclick="openServer('${escapeHtml(s)}')">
+        <div class="server-name">${escapeHtml(s)}</div>
+        <div class="server-count">нажми, чтобы открыть →</div>
+      </div>`).join('');
+  }catch(e){
+    document.getElementById('statusDot').classList.add('off');
+  }
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===tab));
+  document.getElementById('tab-rates').style.display  = tab==='rates'  ? '' : 'none';
+  document.getElementById('tab-player').style.display = tab==='player' ? '' : 'none';
+}
+
+const RATE_DEFS = [
+  {key:'az',     label:'AZ-Coin',         icon:'🪙', color:'#f2c94c'},
+  {key:'btc',    label:'BTC',             icon:'₿',  color:'#f2994a'},
+  {key:'eur',    label:'Евро',            icon:'€',  color:'#56ccf2'},
+  {key:'vc',     label:'VC$ (покупка)',   icon:'💵', color:'#33e08a'},
+  {key:'vcSell', label:'VC$ (продажа)',   icon:'💵', color:'#33e08a'},
+  {key:'asc',    label:'ASC',             icon:'🎟️', color:'#bb6bff'},
+];
+
+function renderRates(rates){
+  lastRatesData = rates;
+  const el = document.getElementById('tab-rates');
+  if(!rates){
+    el.innerHTML = '<div class="empty-note">Курс валют ещё не приходил с этого сервера. Как только кто-то нажмёт «Обновить с телефона» в скрипте (или обновит курс вручную ниже) — курс появится здесь.</div>' + manualRateFormHtml();
+    bindManualRateForm();
+    return;
+  }
+  const ago = agoText(rates.updated);
+  const items = RATE_DEFS.map(c => ({...c, val: rates[c.key]})).filter(c => c.val && c.val > 0);
+  if(items.length === 0){
+    el.innerHTML = '<div class="empty-note">Курс валют ещё не приходил с этого сервера.</div>' + manualRateFormHtml();
+    bindManualRateForm();
+    return;
+  }
+  el.innerHTML = '<div class="rate-grid">' + items.map(c => `
+      <div class="rate-card" onclick="openChart('${c.key}','${escapeHtml(c.label)}')">
+        <div class="rate-top">
+          <div class="rate-sym">${c.label}</div>
+          <div class="rate-icon" style="background:${c.color}22;color:${c.color}">${c.icon}</div>
+        </div>
+        <div class="rate-val">${money(c.val)} SA$</div>
+        <div class="rate-ago ${ago.cls}">${ago.text}</div>
+        <div class="rate-chart-hint">нажми, чтобы посмотреть график →</div>
+      </div>`).join('') + '</div>' + manualRateFormHtml();
+  bindManualRateForm();
+}
+
+function manualRateFormHtml(){
+  const r = lastRatesData || {};
+  return `
+    <div class="panel-card">
+      <div class="panel-title" onclick="toggleManualForm()">
+        <span>Обновить курс вручную</span><span class="chev" id="manualChev">▾</span>
+      </div>
+      <div id="manualFormBody">
+        <div class="form-grid">
+          <div><label>AZ-Coin</label><input type="number" id="mf_az" value="${r.az||''}"></div>
+          <div><label>BTC</label><input type="number" id="mf_btc" value="${r.btc||''}"></div>
+          <div><label>Евро</label><input type="number" id="mf_eur" value="${r.eur||''}"></div>
+          <div><label>VC$ (покупка)</label><input type="number" id="mf_vc" value="${r.vc||''}"></div>
+          <div><label>VC$ (продажа)</label><input type="number" id="mf_vcSell" value="${r.vcSell||''}"></div>
+          <div><label>ASC</label><input type="number" id="mf_asc" value="${r.asc||''}"></div>
+        </div>
+        <div class="btn-row"><button class="btn green" onclick="submitManualRate()">Сохранить курс</button></div>
+        <div class="form-note">Курс публичный и не защищён паролем — как и всё остальное на этой странице. Значение сразу же появится у всех, кто откроет этот сервер.</div>
+        <div class="status-msg" id="manualFormStatus"></div>
+      </div>
+    </div>`;
+}
+
+function toggleManualForm(){
+  const body = document.getElementById('manualFormBody');
+  const chev = document.getElementById('manualChev');
+  const collapsed = body.style.display === 'none';
+  body.style.display = collapsed ? '' : 'none';
+  chev.textContent = collapsed ? '▾' : '▸';
+}
+
+function bindManualRateForm(){ /* поля уже провязаны через inline id, доп. привязки не нужны */ }
+
+async function submitManualRate(){
+  if(!currentServer) return;
+  const statusEl = document.getElementById('manualFormStatus');
+  const get = id => document.getElementById(id).value;
+  const q = new URLSearchParams({
+    server: currentServer,
+    az: get('mf_az') || 0, btc: get('mf_btc') || 0, eur: get('mf_eur') || 0,
+    vc: get('mf_vc') || 0, vcSell: get('mf_vcSell') || 0, asc: get('mf_asc') || 0,
+  });
+  statusEl.textContent = 'Отправка…'; statusEl.className = 'status-msg';
+  try{
+    const res = await fetch(API_BASE.replace(/\/+$/,'') + '/rates?' + q.toString());
+    const data = await res.json();
+    if(data.ok){
+      statusEl.textContent = 'Курс обновлён.'; statusEl.className = 'status-msg ok';
+      refreshDash();
+    } else {
+      statusEl.textContent = 'Ошибка: ' + (data.error || '?'); statusEl.className = 'status-msg err';
+    }
+  }catch(e){
+    statusEl.textContent = 'Не удалось отправить — проверь соединение.'; statusEl.className = 'status-msg err';
+  }
+}
+
+function renderPlayers(players){
+  const el = document.getElementById('tab-player');
+  if(!players || players.length === 0){
+    el.innerHTML = '<div class="empty-note">Пока никто не заходил на этот сервер со скриптом PC Stats.</div>';
+    return;
+  }
+  el.innerHTML = '<div class="player-list">' + players.map(p => {
+    const ago = agoText(p.updated);
+    return `<div class="player-row">
+      <div class="player-nick">${escapeHtml(p.nick)}</div>
+      <div class="player-ago ${ago.cls}">${ago.text}</div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+async function refreshDash(){
+  if(!currentServer) return;
+  try{
+    const res = await fetch(API_BASE.replace(/\/+$/,'') + '/data?server=' + encodeURIComponent(currentServer));
+    const data = await res.json();
+    document.getElementById('statusDot').classList.remove('off');
+    document.getElementById('updatedAt').textContent = 'обновлено ' + new Date().toLocaleTimeString('ru-RU');
+    renderRates(data.rates);
+    renderPlayers(data.players);
+  }catch(e){
+    document.getElementById('statusDot').classList.add('off');
+  }
+}
+
+function setActiveScreen(id){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.getElementById('navHome').classList.toggle('active', id==='screen-home' || id==='screen-dash');
+  document.getElementById('navCabinet').classList.toggle('active', id==='screen-cabinet');
+}
+
+function openServer(name){
+  currentServer = name;
+  setActiveScreen('screen-dash');
+  document.getElementById('dashTitle').textContent = name;
+  switchTab('rates');
+  refreshDash();
+  if(pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(refreshDash, 15000);
+  location.hash = 'server=' + encodeURIComponent(name);
+}
+
+function goHome(){
+  currentServer = null;
+  if(pollTimer) clearInterval(pollTimer);
+  if(cabinetPollTimer) clearInterval(cabinetPollTimer);
+  setActiveScreen('screen-home');
+  location.hash = '';
+  loadServers();
+}
+
+/* ---------------- график курса ---------------- */
+
+async function openChart(key, label){
+  document.getElementById('chartTitle').textContent = label + ' — история';
+  document.getElementById('chartBox').innerHTML = '<div class="form-note">Загрузка…</div>';
+  document.getElementById('chartNote').textContent = '';
+  document.getElementById('chartModal').classList.add('active');
+  try{
+    const res = await fetch(API_BASE.replace(/\/+$/,'') + '/rates/history?server=' + encodeURIComponent(currentServer));
+    const data = await res.json();
+    const points = (data.history || []).filter(p => p[key] && p[key] > 0);
+    if(points.length < 2){
+      document.getElementById('chartBox').innerHTML = '<div class="form-note">Пока недостаточно точек для графика — история копится с каждым обновлением курса.</div>';
+      return;
+    }
+    document.getElementById('chartBox').innerHTML = buildSvgChart(points, key);
+    const first = points[0][key], last = points[points.length-1][key];
+    const diff = last - first;
+    const pct = first ? (diff/first*100) : 0;
+    document.getElementById('chartNote').textContent =
+      `С ${new Date(points[0].t).toLocaleString('ru-RU')} по ${new Date(points[points.length-1].t).toLocaleString('ru-RU')}: ` +
+      (diff>=0 ? '+' : '') + money(diff) + ' SA$ (' + (pct>=0?'+':'') + pct.toFixed(1) + '%)';
+  }catch(e){
+    document.getElementById('chartBox').innerHTML = '<div class="form-note">Не удалось загрузить историю.</div>';
+  }
+}
+
+function buildSvgChart(points, key){
+  const W = 500, H = 220, pad = 30;
+  const vals = points.map(p => p[key]);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const range = (max - min) || 1;
+  const stepX = (W - pad*2) / (points.length - 1);
+  const coords = points.map((p, i) => {
+    const x = pad + i * stepX;
+    const y = H - pad - ((p[key] - min) / range) * (H - pad*2);
+    return [x, y];
+  });
+  const linePath = coords.map((c,i) => (i===0?'M':'L') + c[0].toFixed(1) + ',' + c[1].toFixed(1)).join(' ');
+  const areaPath = linePath + ` L${coords[coords.length-1][0].toFixed(1)},${H-pad} L${coords[0][0].toFixed(1)},${H-pad} Z`;
+  const dots = coords.map(c => `<circle cx="${c[0].toFixed(1)}" cy="${c[1].toFixed(1)}" r="2.5" fill="#8b6bff"/>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+    <line x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+    <path d="${areaPath}" fill="rgba(139,107,255,0.14)" stroke="none"/>
+    <path d="${linePath}" fill="none" stroke="#8b6bff" stroke-width="2.2"/>
+    ${dots}
+    <text x="${pad}" y="14" fill="#6c6790" font-size="11" font-family="monospace">${money(max)}</text>
+    <text x="${pad}" y="${H-pad+18}" fill="#6c6790" font-size="11" font-family="monospace">${money(min)}</text>
+  </svg>`;
+}
+
+function closeChart(){
+  document.getElementById('chartModal').classList.remove('active');
+}
+
+/* ---------------- личный кабинет ---------------- */
+
+function goCabinet(){
+  if(pollTimer) clearInterval(pollTimer);
+  currentServer = null;
+  setActiveScreen('screen-cabinet');
+  location.hash = 'cabinet';
+  const saved = localStorage.getItem('pcstats_token');
+  if(saved){
+    document.getElementById('tokenInput').value = saved;
+    openCabinet(saved);
+  } else {
+    document.getElementById('cabinetGate').style.display = '';
+    document.getElementById('cabinetBody').style.display = 'none';
+  }
+}
+
+function saveToken(){
+  const t = document.getElementById('tokenInput').value.trim();
+  const statusEl = document.getElementById('cabinetGateStatus');
+  if(!t){ statusEl.textContent = 'Введи токен из скрипта.'; statusEl.className = 'status-msg err'; return; }
+  localStorage.setItem('pcstats_token', t);
+  openCabinet(t);
+}
+
+function forgetToken(){
+  localStorage.removeItem('pcstats_token');
+  if(cabinetPollTimer) clearInterval(cabinetPollTimer);
+  document.getElementById('cabinetGate').style.display = '';
+  document.getElementById('cabinetBody').style.display = 'none';
+  document.getElementById('tokenInput').value = '';
+}
+
+const STAT_LABELS = {
+  cash:'Наличные', bank:'Банк', dep:'Вклад', acc:'Счёт',
+  az:'AZ-Coin', btc:'BTC', eur:'Евро', vc:'VC$', asc:'ASC',
+  level:'Уровень', health:'Здоровье', hours:'Часов в игре',
+};
+
+async function openCabinet(token){
+  const statusEl = document.getElementById('cabinetGateStatus');
+  try{
+    const res = await fetch(API_BASE.replace(/\/+$/,'') + '/me?token=' + encodeURIComponent(token));
+    if(res.status === 404){
+      statusEl.textContent = 'Токен не найден — проверь, что скопировал его полностью.';
+      statusEl.className = 'status-msg err';
+      return;
+    }
+    const data = await res.json();
+    document.getElementById('cabinetGate').style.display = 'none';
+    document.getElementById('cabinetBody').style.display = '';
+    document.getElementById('cabinetWho').textContent = data.nick + ' · ' + data.server;
+
+    const statsEl = document.getElementById('cabinetStats');
+    if(!data.stats){
+      statsEl.innerHTML = '<div class="empty-note" style="grid-column:1/-1;">Статистика ещё не приходила — она обновляется автоматически после /stats в игре.</div>';
+    } else {
+      statsEl.innerHTML = Object.keys(STAT_LABELS).filter(k => data.stats[k] !== undefined && data.stats[k] !== 0)
+        .map(k => `<div class="stat-card"><div class="stat-label">${STAT_LABELS[k]}</div><div class="stat-val">${money(data.stats[k])}</div></div>`).join('')
+        || '<div class="empty-note" style="grid-column:1/-1;">Пока нет ненулевых значений.</div>';
+      document.getElementById('cabinetUpdated').textContent = data.stats.updated ? agoText(data.stats.updated).text : '';
+    }
+
+    const taxEl = document.getElementById('taxStatus');
+    if(data.tax && data.tax.paidAt){
+      taxEl.innerHTML = `<span class="tax-badge paid">оплачен — ${new Date(data.tax.paidAt).toLocaleString('ru-RU')}</span>`;
+    } else {
+      taxEl.innerHTML = `<span class="tax-badge unpaid">статус неизвестен / не оплачен</span>`;
+    }
+
+    if(cabinetPollTimer) clearInterval(cabinetPollTimer);
+    cabinetPollTimer = setInterval(() => openCabinet(token), 30000);
+  }catch(e){
+    statusEl.textContent = 'Не удалось связаться с сервером.';
+    statusEl.className = 'status-msg err';
+  }
+}
+
+async function requestTaxPay(){
+  const token = localStorage.getItem('pcstats_token');
+  const statusEl = document.getElementById('taxActionStatus');
+  if(!token) return;
+  statusEl.textContent = 'Ставим команду в очередь…'; statusEl.className = 'status-msg';
+  try{
+    const res = await fetch(API_BASE.replace(/\/+$/,'') + '/cmd/set?token=' + encodeURIComponent(token) + '&action=pay_tax');
+    const data = await res.json();
+    statusEl.textContent = data.ok ? 'Команда поставлена — выполнится при следующей проверке в игре.' : 'Ошибка: ' + (data.error||'?');
+    statusEl.className = data.ok ? 'status-msg ok' : 'status-msg err';
+  }catch(e){
+    statusEl.textContent = 'Не удалось отправить команду.'; statusEl.className = 'status-msg err';
+  }
+}
+
+async function markTaxPaidManually(){
+  const token = localStorage.getItem('pcstats_token');
+  const statusEl = document.getElementById('taxActionStatus');
+  if(!token) return;
+  try{
+    const res = await fetch(API_BASE.replace(/\/+$/,'') + '/token/tax?token=' + encodeURIComponent(token) + '&paid=1');
+    const data = await res.json();
+    if(data.ok){ statusEl.textContent = 'Отмечено.'; statusEl.className = 'status-msg ok'; openCabinet(token); }
+    else { statusEl.textContent = 'Ошибка: ' + (data.error||'?'); statusEl.className = 'status-msg err'; }
+  }catch(e){
+    statusEl.textContent = 'Не удалось отправить.'; statusEl.className = 'status-msg err';
+  }
+}
+
+async function requestRefresh(){
+  const token = localStorage.getItem('pcstats_token');
+  const statusEl = document.getElementById('miscActionStatus');
+  if(!token) return;
+  try{
+    const res = await fetch(API_BASE.replace(/\/+$/,'') + '/cmd/set?token=' + encodeURIComponent(token) + '&action=refresh_stats');
+    const data = await res.json();
+    statusEl.textContent = data.ok ? 'Запрошено — данные обновятся при следующей проверке в игре.' : 'Ошибка: ' + (data.error||'?');
+    statusEl.className = data.ok ? 'status-msg ok' : 'status-msg err';
+  }catch(e){
+    statusEl.textContent = 'Не удалось отправить запрос.'; statusEl.className = 'status-msg err';
+  }
+}
+
+/* ---------------- boot ---------------- */
+
+function boot(){
+  const m = location.hash.match(/server=([^&]+)/);
+  if(location.hash === '#cabinet'){
+    loadServers();
+    goCabinet();
+    return;
+  }
+  loadServers();
+  if(m) openServer(decodeURIComponent(m[1]));
+}
+
+window.addEventListener('hashchange', () => {
+  if(!location.hash) goHome();
+  else if(location.hash === '#cabinet') goCabinet();
+});
+boot();
+</script>
+</body>
+</html>
